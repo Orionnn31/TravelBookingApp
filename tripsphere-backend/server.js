@@ -20,6 +20,9 @@ app.use('/api/packages', packageRoutes);
 const bookingRoutes = require('./routes/bookingRoutes');
 app.use('/api/bookings', bookingRoutes);
 
+const paymentRoutes = require('./routes/paymentRoutes');
+app.use('/api/payments', paymentRoutes);
+
 // Test: any logged-in user can access
 app.get('/api/protected', verifyToken, (req, res) => {
   res.json({ success: true, message: `Hello user ${req.user.id}, your role is ${req.user.role}` });

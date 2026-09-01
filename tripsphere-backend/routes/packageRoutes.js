@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/authMiddleware');
 const { authorizeRoles } = require('../middleware/roleMiddleware');
+const { getPackageTime } = require('../controllers/timezoneController');
 const {
   createPackage, getAllPackages, getPackageById, updatePackage, deletePackage
 } = require('../controllers/packageController');
@@ -9,6 +10,7 @@ const {
 // Public routes
 router.get('/', getAllPackages);
 router.get('/:id', getPackageById);
+router.get('/:id/time', getPackageTime);
 
 // Protected routes
 router.post('/', verifyToken, authorizeRoles('agent', 'admin'), createPackage);

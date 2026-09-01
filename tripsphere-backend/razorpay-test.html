@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TripSphere - Razorpay Test</title>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<style>
+  body { font-family: sans-serif; max-width: 500px; margin: 60px auto; padding: 0 20px; }
+  input, button { display: block; width: 100%; padding: 10px; margin: 8px 0; font-size: 14px; box-sizing: border-box; }
+  button { background: #3399cc; color: white; border: none; cursor: pointer; font-weight: bold; }
+  #log { white-space: pre-wrap; background: #f4f4f4; padding: 12px; margin-top: 20px; border-radius: 6px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h2>TripSphere Payment Test</h2>
+
+<label>Backend base URL</label>
+<input id="baseUrl" value="http://localhost:5000/api">
+
+<label>JWT token (login as customer via Postman, paste token here)</label>
+<input id="token" placeholder="Bearer token (without the word 'Bearer')">
+
+<label>Booking ID (must belong to this customer, status not cancelled)</label>
+<input id="bookingId" value="1">
+
+<button onclick="payNow()">Pay Now</button>
+
+<div id="log"></div>
+
+<script>
+function log(msg) {
+  document.getElementById('log').textContent += msg + "\n\n";
+}
+
+async function payNow() {
+  const baseUrl = document.getElementById('baseUrl').value;
+  const token = document.getElementById('token').value.trim();
+  const bookingId = document.getElementById('bookingId').value;
+
+  document.getElementById('log').textContent = '';
+
+  if (!token) {
+    log('Please paste a JWT token first.');
+    return;
+  }
+
+  try {
+    // Step 1: create order
+    log('Creating order...');
+    const orderRes = await fetch(`${baseUrl}/payments/create-order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ booking_id: Number(bookingId) })
+    });
+    const orderData = await orderRes.json();
+    log('create-order response: ' + JSON.stringify(orderData, null, 2));
+
+    if (!orderData.success) {
+      log('Order creation failed, stopping.');
+      return;
+    }
+
+    // Step 2: open Razorpay Checkout
+    const options = {
+      key: orderData.key_id,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      name: 'TripSphere',
+      description: 'Booking Payment (TEST MODE)',
+      order_id: orderData.order_id,
+      handler: async function (response) {
+        log('Razorpay Checkout success, response: ' + JSON.stringify(response, null, 2));
+
+        // Step 3: verify on backend
+        log('Verifying payment with backend...');
+        const verifyRes = await fetch(`${baseUrl}/payments/verify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+            booking_id: Number(bookingId),
+            payment_method: 'card'
+          })
+        });
+        const verifyData = await verifyRes.json();
+        log('verify response: ' + JSON.stringify(verifyData, null, 2));
+      },
+      modal: {
+        ondismiss: function () {
+          log('Checkout closed without completing payment.');
+        }
+      },
+      theme: { color: '#3399cc' }
+    };
+
+    const rzp = new Razorpay(options);
+    rzp.on('payment.failed', function (response) {
+      log('Payment FAILED: ' + JSON.stringify(response.error, null, 2));
+    });
+    rzp.open();
+
+  } catch (err) {
+    log('Error: ' + err.message);
+  }
+}
+</script>
+
+</body>
+</html>
